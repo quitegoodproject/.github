@@ -1,0 +1,74 @@
+{
+  "name": "Local Leads (Google Maps) -> Verified Contact Emails (Flat Cost Cap)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-manual",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/compass~crawler-google-places/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"searchStringsArray\": [\"commercial roofing contractor\"],\n  \"locationQuery\": \"Leeds, UK\",\n  \"maxCrawledPlacesPerSearch\": 25\n}"
+      },
+      "id": "apify-google-maps",
+      "name": "1. Run Google Maps Scraper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/tarquin~flat-cap-contact-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ startUrls: $items('1. Run Google Maps Scraper').map(i => ({ url: i.json.website })).filter(x => x.url), maxPagesPerDomain: 4, verifyEmails: true, excludeGenericRoleEmails: false }) }}"
+      },
+      "id": "qgp-contact-extractor",
+      "name": "2. Extract & Verify Contacts (Flat Cap)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "executeOnce": true,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ ($json.verifiedEmails || []).length > 0 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "filter-deliverable",
+      "name": "3. Keep Deliverable Contacts Only",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [980, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{ "node": "1. Run Google Maps Scraper", "type": "main", "index": 0 }]]
+    },
+    "1. Run Google Maps Scraper": {
+      "main": [[{ "node": "2. Extract & Verify Contacts (Flat Cap)", "type": "main", "index": 0 }]]
+    },
+    "2. Extract & Verify Contacts (Flat Cap)": {
+      "main": [[{ "node": "3. Keep Deliverable Contacts Only", "type": "main", "index": 0 }]]
+    }
+  }
+}
